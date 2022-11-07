@@ -1,0 +1,237 @@
+---
+title: "tenta_svar"
+author: "Isak Berntsson"
+date: "8/15/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(geoR)
+#'install.packages("extraDistr")'
+library(extraDistr)
+
+
+source("ExamData.R")
+set.seed(1337)
+```
+
+# Tenta Juni 2022
+
+## Question 1, Demand of a product
+
+### 1.b
+```{r}
+
+alpha_n = 2326
+beta_n = 7
+
+ndraws = 1E4
+theta_draws = rgamma(ndraws,shape = alpha_n, rate=beta_n)
+q_draws = rpois(ndraws,theta_draws)
+
+
+prob = mean(q_draws>350)
+hist(q_draws, main="histogram of draws", sub= paste("P(Q_6 > 350) = ",prob))
+abline(v=350, col="red")
+
+
+
+```
+
+### 1.c
+
+```{r}
+
+grid = seq(0,1000,by=1)
+utils = matrix(nrow=length(grid),ncol=1)
+
+for (i in 1:length(grid)){
+  utils[i] = mean(utility_func(grid[i],q_draws))
+}
+
+best_a = grid[which.max(utils)]
+plot(x=grid, y = utils, sub=paste("best a = ",best_a))
+abline(v=best_a)
+```
+
+## Question 2, Regression
+
+### 2.a
+
+ 
+
+```{r}
+num_covs = dim(X)[2]
+num_draws = 10000
+
+#priors
+
+mu_0 = rep(0,num_covs)
+omega_0 = 1/(100) * diag(6)
+v_0 = 1
+sigma2_0 = 100^2
+
+res = BayesLinReg(y,X, mu_0, omega_0, v_0, sigma2_0, num_draws)
+
+betas = res$betaSample
+
+for (i in 1:num_covs){
+  sample = betas[,i]
+  sample_interval = quantile(sample, probs=c(0.005,0.995))
+  sample_mean = mean(sample)
+  
+  hist(sample, main = colnames(X)[i],
+       sub = paste(" \n low: ",sample_interval[1],"\n high:",sample_interval[2], "\n mean = ", sample_mean, sep=""), xlab="'")
+  
+  abline(v=sample_mean, col="blue")
+  abline(v=sample_interval, col="red")
+}
+
+
+```
+B_1 has a significant positive value according to our analysis. The exact value likely(99%) between [5.9, 15.8]
+
+
+### 2.b
+
+```{r}
+
+sigma_sample = res$sigma2Sample
+
+posterior_mean = mean(sigma_sample**.5)
+posterior_median = median(sigma_sample**.5)
+
+list(posterior_mean = mean(sigma_sample**.5),
+posterior_median = median(sigma_sample**.5))
+```
+
+### 2.c
+
+
+```{r}
+
+x1_lo = min(X[,2])
+x1_hi = max(X[,2])
+x1_grid = seq(x1_lo,x1_hi,by=.1)
+
+X_test = matrix(nrow=length(x1_grid),ncol = num_covs)
+
+colnames(X_test) = colnames(X)
+X_test[,1] = 1
+X_test[,2]=x1_grid
+X_test[,3] = x1_grid ** 2
+X_test[,4] = 27
+X_test[,5] = 27** 2
+X_test[,6] = 27 * x1_grid
+head(X_test)
+
+
+for (i in 1:length(x1_grid)){
+  x_i = X_test[i,]
+  
+  mu_i = betas %*% (x_i)
+  
+  interval = quantile(mu_i, probs=c(0.025,0.975))
+  if (i ==1){
+    plot(x=x_i[2], y=interval[1],xlim=c(x1_lo-1,x1_hi+1), ylim=c(0,500), xlab="x1", ylab = "mu", main = "95% ETCI of mu, depending on x1")
+    points(x=x_i[2], y=interval[2])
+  }else{  
+    points(x=x_i[2],y=interval[1])
+    points(x=x_i[2], y=interval[2])
+  }
+}
+
+
+points(X[,2], y, col="red")
+```
+
+### 2.d
+
+The effect from x1 depends on x2 only in the sixth Feature. x1*X2.
+
+Consider the two extreme cases: 
+  1. x2 = n, n -> 0
+  2. x2 = M, M -> inf
+
+in case one: the dependence is incredibly small and the sixth feature is inconsequential.
+
+in case two: the dependence is very large and the total effect from x1 depends almost totally on x2. 
+
+In general, there will be some dependence and our effect from x1 is dependent on x2.
+Additionally, we see that the 95% interval for the effect is negative.
+
+
+```{r}
+plot(density(betas[,6]))
+
+quantile(betas[,6],probs=c(0.025,0.975))
+```
+
+## 2.e
+
+
+
+```{r}
+x1 = 50
+x2 = 25
+
+x_test = c(1, x1, x1^2, x2, x2^2, x1*x2)
+```
+
+
+```{r}
+preds = betas %*% x_test + rnorm(length(sigma_sample),0,sd=sqrt(sigma_sample))
+
+hist(preds)
+
+
+
+
+
+```
+## 2.f
+
+```{r}
+leny = length(y)
+maxy = max(y)
+
+
+res = betas %*% t(X)
+head(res)
+
+
+#for every draw of betas and sigma
+#perform prediction for all data points
+#select highest
+
+#compare this set of highest predictions against highest measured.
+# pval = P(max(predicted) > max(measured)), should be around 50%
+
+pred_max = matrix(nrow= ndraws,ncol=1)
+for (i in 1:ndraws){
+  
+  preds = rnorm(leny,res[i,],sqrt(sigma_sample[i]))
+  pred_max[i] = max(preds)
+}
+head(pred)
+prob = mean(pred_max > maxy)
+
+hist(pred_max, sub=paste("pval",prob))
+abline(v=max(y), col="red")
+abline(v=median(pred_max),col="red")
+
+
+```
+```{r}
+y=cars$dist
+
+#print(var(y))
+sample = rinvchisq(1E5,length(y)-1,var(y))
+
+plot(density(sample))
+abline(v=var(y))
+```
+
+
