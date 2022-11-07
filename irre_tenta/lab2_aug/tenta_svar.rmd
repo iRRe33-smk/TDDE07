@@ -1,0 +1,41 @@
+---
+title: "tenta_svar"
+author: "Isak Berntsson"
+date: "8/15/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+source("ExamData.R")
+```
+
+## Tenta Juni 2022
+#1.b
+```{r}
+
+alpha_n = 2326
+beta_n = 7
+
+ndraws = 10000
+theta_draws = rgamma(ndraws,shape = alpha_n, rate=beta_n)
+q_draws = rpois(ndraws,theta_draws)
+
+
+prob = mean(q_draws>350)
+hist(q_draws, main="histogram of draws", sub= paste("P(Q_6 > 350) = ",prob))
+abline(v=350, col="red")
+
+
+
+```
+
+#1.c
+```{r}
+
+util = function()
+
+
+```
+
